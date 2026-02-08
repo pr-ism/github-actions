@@ -1,0 +1,36 @@
+name: "PR-ism Helpers"
+description: "Provide prism_post() and utc_now() via BASH_ENV"
+runs:
+  using: "composite"
+  steps:
+    - name: Install PR-ism bash helpers
+      shell: bash
+      run: |
+        cat > "$RUNNER_TEMP/prism_helpers.sh" <<'BASH'
+        utc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+        prism_post() {
+          local endpoint="$1"
+          local payload="$2"
+
+          if [ -z "${WEBHOOK_URL:-}" ]; then
+            echo "WEBHOOK_URL is empty. Skip POST: ${endpoint}"
+            return 0
+          fi
+          if [ -z "${PRISM_API_KEY:-}" ]; then
+            echo "PRISM_API_KEY is empty. Fail."
+            return 1
+          fi
+
+          local base="${WEBHOOK_URL%/}"
+          local path="${endpoint#/}"
+
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: ${PRISM_API_KEY}" \
+            -d "$payload" \
+            "${base}/${path}" --fail --silent --show-error
+        }
+        BASH
+
+        echo "BASH_ENV=$RUNNER_TEMP/prism_helpers.sh" >> "$GITHUB_ENV"

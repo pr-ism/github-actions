@@ -1,0 +1,338 @@
+name: PR-ism All-in-One (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      stats_webhook_url:
+        description: "Stats server base URL"
+        required: true
+        type: string
+        default: "https://stats.pr-ism.site"
+      slack_webhook_url:
+        description: "Slack server base URL"
+        required: true
+        type: string
+        default: "https://slack.pr-ism.site"
+    secrets:
+      PRISM_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  collect-pr-opened:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle opened event
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_DATA=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $number) {
+                  number
+                  title
+                  url
+                  additions
+                  deletions
+                  changedFiles
+                  createdAt
+                  author { login }
+                  commits(first: 100) {
+                    totalCount
+                    nodes {
+                      commit {
+                        oid
+                        committedDate
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner='${{ github.repository_owner }}' \
+            -f repo='${{ github.event.repository.name }}' \
+            -F number=${{ github.event.pull_request.number }})
+
+          FILES_DATA=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '[.[] | {filename, status, additions, deletions}]')
+
+          PAYLOAD=$(jq -n \
+            --argjson prData "$PR_DATA" \
+            --argjson files "$FILES_DATA" \
+            --argjson isDraft '${{ toJson(github.event.pull_request.draft) }}' \
+            '{
+              isDraft: $isDraft,
+              pullRequest: $prData.data.repository.pullRequest,
+              files: $files
+            }')
+
+          prism_post "/webhook/pull-request/opened" "$PAYLOAD"
+
+  collect-reviewer:
+    if: github.event.action == 'review_requested' || github.event.action == 'review_request_removed'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle review_requested event
+        if: github.event.action == 'review_requested'
+        env:
+          REQUESTED_REVIEWER_LOGIN: ${{ github.event.requested_reviewer.login }}
+          REQUESTED_REVIEWER_ID: ${{ github.event.requested_reviewer.id }}
+          REQUESTED_TEAM_SLUG: ${{ github.event.requested_team.slug }}
+          REQUESTED_TEAM_ID: ${{ github.event.requested_team.id }}
+        run: |
+          if [ -n "${REQUESTED_REVIEWER_ID:-}" ]; then
+            LOGIN="$REQUESTED_REVIEWER_LOGIN"
+            ID="$REQUESTED_REVIEWER_ID"
+          else
+            LOGIN="$REQUESTED_TEAM_SLUG"
+            ID="$REQUESTED_TEAM_ID"
+          fi
+
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg login "$LOGIN" \
+            --argjson id "${ID:-null}" \
+            --arg requestedAt "$(utc_now)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reviewer: { login: $login, id: $id },
+              requestedAt: $requestedAt
+            }')
+
+          prism_post "/webhook/reviewer/added" "$PAYLOAD"
+
+      - name: Handle review_request_removed event
+        if: github.event.action == 'review_request_removed'
+        env:
+          REQUESTED_REVIEWER_LOGIN: ${{ github.event.requested_reviewer.login }}
+          REQUESTED_REVIEWER_ID: ${{ github.event.requested_reviewer.id }}
+          REQUESTED_TEAM_SLUG: ${{ github.event.requested_team.slug }}
+          REQUESTED_TEAM_ID: ${{ github.event.requested_team.id }}
+        run: |
+          if [ -n "${REQUESTED_REVIEWER_ID:-}" ]; then
+            LOGIN="$REQUESTED_REVIEWER_LOGIN"
+            ID="$REQUESTED_REVIEWER_ID"
+          else
+            LOGIN="$REQUESTED_TEAM_SLUG"
+            ID="$REQUESTED_TEAM_ID"
+          fi
+
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg login "$LOGIN" \
+            --argjson id "${ID:-null}" \
+            --arg removedAt "$(utc_now)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reviewer: { login: $login, id: $id },
+              removedAt: $removedAt
+            }')
+
+          prism_post "/webhook/reviewer/removed" "$PAYLOAD"
+
+  collect-pr-label:
+    if: github.event.action == 'labeled' || github.event.action == 'unlabeled'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle labeled/unlabeled event
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          LABEL_NAME="${{ github.event.label.name }}"
+
+          if [ "${{ github.event.action }}" = "labeled" ]; then
+            PAYLOAD=$(jq -n \
+              --argjson pullRequestNumber "$PR_NUMBER" \
+              --arg labelName "$LABEL_NAME" \
+              --arg labeledAt "$(utc_now)" \
+              '{
+                pullRequestNumber: $pullRequestNumber,
+                label: { name: $labelName },
+                labeledAt: $labeledAt
+              }')
+            prism_post "/webhook/pull-request/label/added" "$PAYLOAD"
+          else
+            PAYLOAD=$(jq -n \
+              --argjson pullRequestNumber "$PR_NUMBER" \
+              --arg labelName "$LABEL_NAME" \
+              --arg unlabeledAt "$(utc_now)" \
+              '{
+                pullRequestNumber: $pullRequestNumber,
+                label: { name: $labelName },
+                unlabeledAt: $unlabeledAt
+              }')
+            prism_post "/webhook/pull-request/label/removed" "$PAYLOAD"
+          fi
+
+  collect-review-submitted:
+    if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle review submitted event
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMENT_COUNT=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}/comments" \
+            --jq 'length')
+
+          PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --argjson githubReviewId "${{ github.event.review.id }}" \
+            --arg reviewerLogin "${{ github.event.review.user.login }}" \
+            --argjson reviewerId "${{ github.event.review.user.id }}" \
+            --arg state "${{ github.event.review.state }}" \
+            --arg commitSha "${{ github.event.review.commit_id }}" \
+            --arg body "${{ github.event.review.body }}" \
+            --argjson commentCount "$COMMENT_COUNT" \
+            --arg submittedAt "${{ github.event.review.submitted_at }}" \
+            '{
+              githubPullRequestId: $githubPullRequestId,
+              pullRequestNumber: $pullRequestNumber,
+              githubReviewId: $githubReviewId,
+              reviewer: { login: $reviewerLogin, id: $reviewerId },
+              state: $state,
+              commitSha: $commitSha,
+              body: $body,
+              commentCount: $commentCount,
+              submittedAt: $submittedAt
+            }')
+
+          prism_post "/webhook/review/submitted" "$PAYLOAD"
+
+  collect-review-comment:
+    if: github.event_name == 'pull_request_review_comment'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle review comment created event
+        if: github.event.action == 'created'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --argjson githubReviewId "${{ github.event.comment.pull_request_review_id }}" \
+            --arg body "${{ github.event.comment.body }}" \
+            --arg path "${{ github.event.comment.path }}" \
+            --argjson line "${{ github.event.comment.line || 0 }}" \
+            --argjson startLine "${{ github.event.comment.start_line || 'null' }}" \
+            --arg side "${{ github.event.comment.side }}" \
+            --arg commitSha "${{ github.event.comment.commit_id }}" \
+            --argjson inReplyToId "${{ github.event.comment.in_reply_to_id || 'null' }}" \
+            --arg authorLogin "${{ github.event.comment.user.login }}" \
+            --argjson authorId "${{ github.event.comment.user.id }}" \
+            --arg createdAt "${{ github.event.comment.created_at }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              githubReviewId: $githubReviewId,
+              body: $body,
+              path: $path,
+              line: $line,
+              startLine: $startLine,
+              side: $side,
+              commitSha: $commitSha,
+              inReplyToId: $inReplyToId,
+              author: { login: $authorLogin, id: $authorId },
+              createdAt: $createdAt,
+              updatedAt: $updatedAt
+            }')
+
+          prism_post "/webhook/review-comment/created" "$PAYLOAD"
+
+      - name: Handle review comment edited event
+        if: github.event.action == 'edited'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --arg body "${{ github.event.comment.body }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              body: $body,
+              updatedAt: $updatedAt
+            }')
+
+          prism_post "/webhook/review-comment/edited" "$PAYLOAD"
+
+  collect-review-request-notification:
+    if: github.event.action == 'review_requested'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.slack_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle review requested event (Slack)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          AUTHOR="${{ github.event.pull_request.user.login }}"
+
+          PENDING_RAW=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/requested_reviewers" || echo '{"users":[],"teams":[]}')
+          REVIEWED_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" || echo '[]')
+
+          PENDING_USERS=$(echo "$PENDING_RAW" | jq -r --arg author "$AUTHOR" '[.users[].login? | select(. != $author)]')
+          REVIEWED_USERS=$(echo "$REVIEWED_RAW" | jq -r --arg author "$AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')
+
+          PAYLOAD=$(jq -n \
+            --arg repo "$REPO" \
+            --arg prId "PR-$PR_NUMBER" \
+            --argjson prNumber "$PR_NUMBER" \
+            --arg prTitle "${{ github.event.pull_request.title }}" \
+            --arg prUrl "${{ github.event.pull_request.html_url }}" \
+            --arg author "$AUTHOR" \
+            --argjson pending "$PENDING_USERS" \
+            --argjson reviewed "$REVIEWED_USERS" \
+            '{
+              repositoryName: $repo,
+              pullRequestId: $prId,
+              pullRequestNumber: $prNumber,
+              pullRequestTitle: $prTitle,
+              pullRequestUrl: $prUrl,
+              authorGithubId: $author,
+              pendingReviewers: $pending,
+              reviewedReviewers: $reviewed
+            }')
+
+          prism_post "/events/review-request" "$PAYLOAD"
