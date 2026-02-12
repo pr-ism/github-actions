@@ -32,6 +32,7 @@ jobs:
   # ──────────────────────────────────────────────
   # 1. PR Opened
   # ──────────────────────────────────────────────
+  # Endpoint: POST /collect/pull-request/opened
   # Request DTO: PullRequestOpenedRequest
   #   - isDraft: boolean
   #   - pullRequest: { githubPullRequestId, number, title, url, headCommitSha,
@@ -100,15 +101,18 @@ jobs:
               files: $files
             }')
 
-          prism_post "/webhook/pull-request/opened" "$PAYLOAD"
+          prism_post "/collect/pull-request/opened" "$PAYLOAD"
 
   # ──────────────────────────────────────────────
   # 2. PR Label (labeled / unlabeled)
   # ──────────────────────────────────────────────
-  # Request DTO (added): PullRequestLabelAddedRequest
+  # Endpoint: POST /collect/pull-request/label/added
+  # Request DTO: PullRequestLabelAddedRequest
   #   - githubPullRequestId, pullRequestNumber, headCommitSha,
   #     label: { name }, labeledAt
-  # Request DTO (removed): PullRequestLabelRemovedRequest
+  #
+  # Endpoint: POST /collect/pull-request/label/removed
+  # Request DTO: PullRequestLabelRemovedRequest
   #   - githubPullRequestId, pullRequestNumber, headCommitSha,
   #     label: { name }, unlabeledAt
   # ──────────────────────────────────────────────
@@ -138,7 +142,7 @@ jobs:
               labeledAt: $labeledAt
             }')
 
-          prism_post "/webhook/pull-request/label/added" "$PAYLOAD"
+          prism_post "/collect/pull-request/label/added" "$PAYLOAD"
 
       - name: Handle unlabeled event
         if: github.event.action == 'unlabeled'
@@ -157,15 +161,18 @@ jobs:
               unlabeledAt: $unlabeledAt
             }')
 
-          prism_post "/webhook/pull-request/label/removed" "$PAYLOAD"
+          prism_post "/collect/pull-request/label/removed" "$PAYLOAD"
 
   # ──────────────────────────────────────────────
   # 3. Reviewer (review_requested / review_request_removed)
   # ──────────────────────────────────────────────
-  # Request DTO (added): ReviewerAddedRequest
+  # Endpoint: POST /collect/review/reviewer/added
+  # Request DTO: ReviewerAddedRequest
   #   - githubPullRequestId, pullRequestNumber, headCommitSha,
   #     reviewer: { login, id }, requestedAt
-  # Request DTO (removed): ReviewerRemovedRequest
+  #
+  # Endpoint: POST /collect/review/reviewer/removed
+  # Request DTO: ReviewerRemovedRequest
   #   - githubPullRequestId, pullRequestNumber, headCommitSha,
   #     reviewer: { login, id }, removedAt
   # ──────────────────────────────────────────────
@@ -209,7 +216,7 @@ jobs:
               requestedAt: $requestedAt
             }')
 
-          prism_post "/webhook/review/reviewer/added" "$PAYLOAD"
+          prism_post "/collect/review/reviewer/added" "$PAYLOAD"
 
       - name: Handle review_request_removed event
         if: github.event.action == 'review_request_removed'
@@ -242,11 +249,12 @@ jobs:
               removedAt: $removedAt
             }')
 
-          prism_post "/webhook/review/reviewer/removed" "$PAYLOAD"
+          prism_post "/collect/review/reviewer/removed" "$PAYLOAD"
 
   # ──────────────────────────────────────────────
   # 4. Review Submitted
   # ──────────────────────────────────────────────
+  # Endpoint: POST /collect/review/submitted
   # Request DTO: ReviewSubmittedRequest
   #   - githubPullRequestId, pullRequestNumber, githubReviewId,
   #     reviewer: { login, id }, state, commitSha, body,
@@ -292,18 +300,23 @@ jobs:
               submittedAt: $submittedAt
             }')
 
-          prism_post "/webhook/review/submitted" "$PAYLOAD"
+          prism_post "/collect/review/submitted" "$PAYLOAD"
 
   # ──────────────────────────────────────────────
   # 5. Review Comment (created / edited / deleted)
   # ──────────────────────────────────────────────
-  # Request DTO (created): ReviewCommentCreatedRequest
+  # Endpoint: POST /collect/review/comment/created
+  # Request DTO: ReviewCommentCreatedRequest
   #   - githubCommentId, githubReviewId, body, path, line, startLine,
   #     side, commitSha, inReplyToId, author: { login, id },
   #     createdAt, updatedAt
-  # Request DTO (edited): ReviewCommentEditedRequest
+  #
+  # Endpoint: POST /collect/review/comment/edited
+  # Request DTO: ReviewCommentEditedRequest
   #   - githubCommentId, body, updatedAt
-  # Request DTO (deleted): ReviewCommentDeletedRequest
+  #
+  # Endpoint: POST /collect/review/comment/deleted
+  # Request DTO: ReviewCommentDeletedRequest
   #   - githubCommentId, updatedAt
   # ──────────────────────────────────────────────
   collect-review-comment:
@@ -347,7 +360,7 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/webhook/review/comment/created" "$PAYLOAD"
+          prism_post "/collect/review/comment/created" "$PAYLOAD"
 
       - name: Handle review comment edited event
         if: github.event.action == 'edited'
@@ -362,7 +375,7 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/webhook/review/comment/edited" "$PAYLOAD"
+          prism_post "/collect/review/comment/edited" "$PAYLOAD"
 
       - name: Handle review comment deleted event
         if: github.event.action == 'deleted'
@@ -375,7 +388,7 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/webhook/review/comment/deleted" "$PAYLOAD"
+          prism_post "/collect/review/comment/deleted" "$PAYLOAD"
 
   # ──────────────────────────────────────────────
   # 6. Slack: Review Request Notification
