@@ -101,7 +101,11 @@ jobs:
               files: $files
             }')
 
-          prism_post "/collect/pull-request/opened" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/opened"
 
   # ──────────────────────────────────────────────
   # 2. PR Label (labeled / unlabeled)
@@ -142,7 +146,11 @@ jobs:
               labeledAt: $labeledAt
             }')
 
-          prism_post "/collect/pull-request/label/added" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/label/added"
 
       - name: Handle unlabeled event
         if: github.event.action == 'unlabeled'
@@ -161,7 +169,11 @@ jobs:
               unlabeledAt: $unlabeledAt
             }')
 
-          prism_post "/collect/pull-request/label/removed" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/label/removed"
 
   # ──────────────────────────────────────────────
   # 3. Reviewer (review_requested / review_request_removed)
@@ -216,7 +228,11 @@ jobs:
               requestedAt: $requestedAt
             }')
 
-          prism_post "/collect/review/reviewer/added" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/review/reviewer/added"
 
       - name: Handle review_request_removed event
         if: github.event.action == 'review_request_removed'
@@ -249,7 +265,11 @@ jobs:
               removedAt: $removedAt
             }')
 
-          prism_post "/collect/review/reviewer/removed" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/review/reviewer/removed"
 
   # ──────────────────────────────────────────────
   # 4. Review Submitted
@@ -300,7 +320,11 @@ jobs:
               submittedAt: $submittedAt
             }')
 
-          prism_post "/collect/review/submitted" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/review/submitted"
 
   # ──────────────────────────────────────────────
   # 5. Review Comment (created / edited / deleted)
@@ -360,7 +384,11 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/collect/review/comment/created" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/review/comment/created"
 
       - name: Handle review comment edited event
         if: github.event.action == 'edited'
@@ -375,7 +403,11 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/collect/review/comment/edited" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/review/comment/edited"
 
       - name: Handle review comment deleted event
         if: github.event.action == 'deleted'
@@ -388,7 +420,11 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/collect/review/comment/deleted" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/review/comment/deleted"
 
   # ──────────────────────────────────────────────
   # 6. Slack: Review Request Notification
@@ -437,4 +473,8 @@ jobs:
               reviewedReviewers: $reviewed
             }')
 
-          prism_post "/events/review-request" "$PAYLOAD"
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/events/review-request"
