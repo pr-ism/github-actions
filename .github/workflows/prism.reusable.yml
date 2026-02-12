@@ -29,6 +29,16 @@ defaults:
     shell: bash
 
 jobs:
+  # ──────────────────────────────────────────────
+  # 1. PR Opened
+  # ──────────────────────────────────────────────
+  # Request DTO: PullRequestOpenedRequest
+  #   - isDraft: boolean
+  #   - pullRequest: { githubPullRequestId, number, title, url, headCommitSha,
+  #                     additions, deletions, changedFiles, createdAt,
+  #                     author: { login, id }, commits: { totalCount, nodes[] } }
+  #   - files: [{ filename, status, additions, deletions }]
+  # ──────────────────────────────────────────────
   collect-pr-opened:
     if: github.event.action == 'opened'
     runs-on: ubuntu-latest
@@ -78,14 +88,87 @@ jobs:
             --argjson prData "$PR_DATA" \
             --argjson files "$FILES_DATA" \
             --argjson isDraft '${{ toJson(github.event.pull_request.draft) }}' \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
+            --arg headCommitSha "${{ github.event.pull_request.head.sha }}" \
+            --argjson authorId "${{ github.event.pull_request.user.id }}" \
             '{
               isDraft: $isDraft,
-              pullRequest: $prData.data.repository.pullRequest,
+              pullRequest: ($prData.data.repository.pullRequest + {
+                githubPullRequestId: $githubPullRequestId,
+                headCommitSha: $headCommitSha
+              } | .author += {id: $authorId}),
               files: $files
             }')
 
           prism_post "/webhook/pull-request/opened" "$PAYLOAD"
 
+  # ──────────────────────────────────────────────
+  # 2. PR Label (labeled / unlabeled)
+  # ──────────────────────────────────────────────
+  # Request DTO (added): PullRequestLabelAddedRequest
+  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
+  #     label: { name }, labeledAt
+  # Request DTO (removed): PullRequestLabelRemovedRequest
+  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
+  #     label: { name }, unlabeledAt
+  # ──────────────────────────────────────────────
+  collect-pr-label:
+    if: github.event.action == 'labeled' || github.event.action == 'unlabeled'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle labeled event
+        if: github.event.action == 'labeled'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg headCommitSha "${{ github.event.pull_request.head.sha }}" \
+            --arg labelName "${{ github.event.label.name }}" \
+            --arg labeledAt "$(utc_now)" \
+            '{
+              githubPullRequestId: $githubPullRequestId,
+              pullRequestNumber: $pullRequestNumber,
+              headCommitSha: $headCommitSha,
+              label: { name: $labelName },
+              labeledAt: $labeledAt
+            }')
+
+          prism_post "/webhook/pull-request/label/added" "$PAYLOAD"
+
+      - name: Handle unlabeled event
+        if: github.event.action == 'unlabeled'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg headCommitSha "${{ github.event.pull_request.head.sha }}" \
+            --arg labelName "${{ github.event.label.name }}" \
+            --arg unlabeledAt "$(utc_now)" \
+            '{
+              githubPullRequestId: $githubPullRequestId,
+              pullRequestNumber: $pullRequestNumber,
+              headCommitSha: $headCommitSha,
+              label: { name: $labelName },
+              unlabeledAt: $unlabeledAt
+            }')
+
+          prism_post "/webhook/pull-request/label/removed" "$PAYLOAD"
+
+  # ──────────────────────────────────────────────
+  # 3. Reviewer (review_requested / review_request_removed)
+  # ──────────────────────────────────────────────
+  # Request DTO (added): ReviewerAddedRequest
+  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
+  #     reviewer: { login, id }, requestedAt
+  # Request DTO (removed): ReviewerRemovedRequest
+  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
+  #     reviewer: { login, id }, removedAt
+  # ──────────────────────────────────────────────
   collect-reviewer:
     if: github.event.action == 'review_requested' || github.event.action == 'review_request_removed'
     runs-on: ubuntu-latest
@@ -112,17 +195,21 @@ jobs:
           fi
 
           PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
             --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg headCommitSha "${{ github.event.pull_request.head.sha }}" \
             --arg login "$LOGIN" \
             --argjson id "${ID:-null}" \
             --arg requestedAt "$(utc_now)" \
             '{
+              githubPullRequestId: $githubPullRequestId,
               pullRequestNumber: $pullRequestNumber,
+              headCommitSha: $headCommitSha,
               reviewer: { login: $login, id: $id },
               requestedAt: $requestedAt
             }')
 
-          prism_post "/webhook/reviewer/added" "$PAYLOAD"
+          prism_post "/webhook/review/reviewer/added" "$PAYLOAD"
 
       - name: Handle review_request_removed event
         if: github.event.action == 'review_request_removed'
@@ -141,56 +228,30 @@ jobs:
           fi
 
           PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
             --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg headCommitSha "${{ github.event.pull_request.head.sha }}" \
             --arg login "$LOGIN" \
             --argjson id "${ID:-null}" \
             --arg removedAt "$(utc_now)" \
             '{
+              githubPullRequestId: $githubPullRequestId,
               pullRequestNumber: $pullRequestNumber,
+              headCommitSha: $headCommitSha,
               reviewer: { login: $login, id: $id },
               removedAt: $removedAt
             }')
 
-          prism_post "/webhook/reviewer/removed" "$PAYLOAD"
+          prism_post "/webhook/review/reviewer/removed" "$PAYLOAD"
 
-  collect-pr-label:
-    if: github.event.action == 'labeled' || github.event.action == 'unlabeled'
-    runs-on: ubuntu-latest
-    env:
-      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
-    steps:
-      - name: Setup PR-ism helpers
-        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
-
-      - name: Handle labeled/unlabeled event
-        run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          LABEL_NAME="${{ github.event.label.name }}"
-
-          if [ "${{ github.event.action }}" = "labeled" ]; then
-            PAYLOAD=$(jq -n \
-              --argjson pullRequestNumber "$PR_NUMBER" \
-              --arg labelName "$LABEL_NAME" \
-              --arg labeledAt "$(utc_now)" \
-              '{
-                pullRequestNumber: $pullRequestNumber,
-                label: { name: $labelName },
-                labeledAt: $labeledAt
-              }')
-            prism_post "/webhook/pull-request/label/added" "$PAYLOAD"
-          else
-            PAYLOAD=$(jq -n \
-              --argjson pullRequestNumber "$PR_NUMBER" \
-              --arg labelName "$LABEL_NAME" \
-              --arg unlabeledAt "$(utc_now)" \
-              '{
-                pullRequestNumber: $pullRequestNumber,
-                label: { name: $labelName },
-                unlabeledAt: $unlabeledAt
-              }')
-            prism_post "/webhook/pull-request/label/removed" "$PAYLOAD"
-          fi
-
+  # ──────────────────────────────────────────────
+  # 4. Review Submitted
+  # ──────────────────────────────────────────────
+  # Request DTO: ReviewSubmittedRequest
+  #   - githubPullRequestId, pullRequestNumber, githubReviewId,
+  #     reviewer: { login, id }, state, commitSha, body,
+  #     commentCount, submittedAt
+  # ──────────────────────────────────────────────
   collect-review-submitted:
     if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
     runs-on: ubuntu-latest
@@ -233,6 +294,18 @@ jobs:
 
           prism_post "/webhook/review/submitted" "$PAYLOAD"
 
+  # ──────────────────────────────────────────────
+  # 5. Review Comment (created / edited / deleted)
+  # ──────────────────────────────────────────────
+  # Request DTO (created): ReviewCommentCreatedRequest
+  #   - githubCommentId, githubReviewId, body, path, line, startLine,
+  #     side, commitSha, inReplyToId, author: { login, id },
+  #     createdAt, updatedAt
+  # Request DTO (edited): ReviewCommentEditedRequest
+  #   - githubCommentId, body, updatedAt
+  # Request DTO (deleted): ReviewCommentDeletedRequest
+  #   - githubCommentId, updatedAt
+  # ──────────────────────────────────────────────
   collect-review-comment:
     if: github.event_name == 'pull_request_review_comment'
     runs-on: ubuntu-latest
@@ -274,7 +347,7 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/webhook/review-comment/created" "$PAYLOAD"
+          prism_post "/webhook/review/comment/created" "$PAYLOAD"
 
       - name: Handle review comment edited event
         if: github.event.action == 'edited'
@@ -289,8 +362,24 @@ jobs:
               updatedAt: $updatedAt
             }')
 
-          prism_post "/webhook/review-comment/edited" "$PAYLOAD"
+          prism_post "/webhook/review/comment/edited" "$PAYLOAD"
 
+      - name: Handle review comment deleted event
+        if: github.event.action == 'deleted'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              updatedAt: $updatedAt
+            }')
+
+          prism_post "/webhook/review/comment/deleted" "$PAYLOAD"
+
+  # ──────────────────────────────────────────────
+  # 6. Slack: Review Request Notification
+  # ──────────────────────────────────────────────
   collect-review-request-notification:
     if: github.event.action == 'review_requested'
     runs-on: ubuntu-latest
