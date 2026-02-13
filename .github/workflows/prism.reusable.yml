@@ -333,7 +333,7 @@ jobs:
   # Request DTO: ReviewCommentCreatedRequest
   #   - githubCommentId, githubReviewId, body, path, line, startLine,
   #     side, commitSha, inReplyToId, author: { login, id },
-  #     createdAt, updatedAt
+  #     createdAt
   #
   # Endpoint: POST /collect/review/comment/edited
   # Request DTO: ReviewCommentEditedRequest
@@ -368,7 +368,6 @@ jobs:
             --arg authorLogin "${{ github.event.comment.user.login }}" \
             --argjson authorId "${{ github.event.comment.user.id }}" \
             --arg createdAt "${{ github.event.comment.created_at }}" \
-            --arg updatedAt "${{ github.event.comment.updated_at }}" \
             '{
               githubCommentId: $githubCommentId,
               githubReviewId: $githubReviewId,
@@ -380,8 +379,7 @@ jobs:
               commitSha: $commitSha,
               inReplyToId: $inReplyToId,
               author: { login: $authorLogin, id: $authorId },
-              createdAt: $createdAt,
-              updatedAt: $updatedAt
+              createdAt: $createdAt
             }')
 
           curl -sf -X POST \
