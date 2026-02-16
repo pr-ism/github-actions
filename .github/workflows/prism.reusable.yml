@@ -108,7 +108,45 @@ jobs:
             "$WEBHOOK_URL/collect/pull-request/opened"
 
   # ──────────────────────────────────────────────
-  # 2. PR Label (labeled / unlabeled)
+  # 2. PR Closed (closed / merged)
+  # ──────────────────────────────────────────────
+  # Endpoint: POST /collect/pull-request/closed
+  # Request DTO: PullRequestClosedRequest
+  #   - pullRequestNumber, isMerged, closedAt, mergedAt
+  # ──────────────────────────────────────────────
+  collect-pr-closed:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle closed event
+        env:
+          MERGED_AT: ${{ github.event.pull_request.merged_at }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --argjson isMerged '${{ toJson(github.event.pull_request.merged) }}' \
+            --arg closedAt "${{ github.event.pull_request.closed_at }}" \
+            --arg mergedAt "$MERGED_AT" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              isMerged: $isMerged,
+              closedAt: $closedAt,
+              mergedAt: (if $mergedAt == "" then null else $mergedAt end)
+            }')
+
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/closed"
+
+  # ──────────────────────────────────────────────
+  # 3. PR Label (labeled / unlabeled)
   # ──────────────────────────────────────────────
   # Endpoint: POST /collect/pull-request/label/added
   # Request DTO: PullRequestLabelAddedRequest
