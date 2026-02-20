@@ -146,7 +146,103 @@ jobs:
             "$WEBHOOK_URL/collect/pull-request/closed"
 
   # ──────────────────────────────────────────────
-  # 3. PR Synchronized
+  # 3. PR Reopened
+  # ──────────────────────────────────────────────
+  # Endpoint: POST /collect/pull-request/reopened
+  # Request DTO: PullRequestReopenedRequest
+  #   - pullRequestNumber, reopenedAt
+  # ──────────────────────────────────────────────
+  collect-pr-reopened:
+    if: github.event.action == 'reopened'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle reopened event
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg reopenedAt "$(utc_now)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reopenedAt: $reopenedAt
+            }')
+
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/reopened"
+
+  # ──────────────────────────────────────────────
+  # 4. PR Ready for Review
+  # ──────────────────────────────────────────────
+  # Endpoint: POST /collect/pull-request/ready-for-review
+  # Request DTO: PullRequestReadyForReviewRequest
+  #   - pullRequestNumber, readyForReviewAt
+  # ──────────────────────────────────────────────
+  collect-pr-ready-for-review:
+    if: github.event.action == 'ready_for_review'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle ready_for_review event
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg readyForReviewAt "$(utc_now)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              readyForReviewAt: $readyForReviewAt
+            }')
+
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/ready-for-review"
+
+  # ──────────────────────────────────────────────
+  # 5. PR Converted to Draft
+  # ──────────────────────────────────────────────
+  # Endpoint: POST /collect/pull-request/converted-to-draft
+  # Request DTO: PullRequestConvertedToDraftRequest
+  #   - pullRequestNumber, convertedToDraftAt
+  # ──────────────────────────────────────────────
+  collect-pr-converted-to-draft:
+    if: github.event.action == 'converted_to_draft'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ inputs.stats_webhook_url }}
+    steps:
+      - name: Setup PR-ism helpers
+        uses: pr-ism/github-actions/.github/actions/prism-helpers@v1
+
+      - name: Handle converted_to_draft event
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg convertedToDraftAt "$(utc_now)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              convertedToDraftAt: $convertedToDraftAt
+            }')
+
+          curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $PRISM_API_KEY" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL/collect/pull-request/converted-to-draft"
+
+  # ──────────────────────────────────────────────
+  # 6. PR Synchronized
   # ──────────────────────────────────────────────
   # Endpoint: POST /collect/pull-request/synchronized
   # Request DTO: PullRequestSynchronizedRequest
