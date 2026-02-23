@@ -246,7 +246,7 @@ jobs:
   # ──────────────────────────────────────────────
   # Endpoint: POST /collect/pull-request/synchronized
   # Request DTO: PullRequestSynchronizedRequest
-  #   - pullRequestNumber, headCommitSha, additions, deletions, changedFiles,
+  #   - githubPullRequestId, pullRequestNumber, headCommitSha, additions, deletions, changedFiles,
   #     commits: { totalCount, nodes: [{ sha, committedDate }] },
   #     files: [{ filename, status, additions, deletions }]
   # ──────────────────────────────────────────────
@@ -288,7 +288,7 @@ jobs:
 
           FILES_DATA=$(gh api \
             "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
-            --jq '[.[] | {filename, status, additions, deletions}]')
+            --jq '[.[] | {filename, status, additions, deletions, previousFilename: .previous_filename}]')
 
           PR=$(echo "$PR_DATA" | jq '.data.repository.pullRequest')
 
@@ -298,6 +298,7 @@ jobs:
           }')
 
           PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
             --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
             --arg headCommitSha "${{ github.event.pull_request.head.sha }}" \
             --argjson additions "$(echo "$PR" | jq '.additions')" \
@@ -306,6 +307,7 @@ jobs:
             --argjson commits "$COMMITS" \
             --argjson files "$FILES_DATA" \
             '{
+              githubPullRequestId: $githubPullRequestId,
               pullRequestNumber: $pullRequestNumber,
               headCommitSha: $headCommitSha,
               additions: $additions,
