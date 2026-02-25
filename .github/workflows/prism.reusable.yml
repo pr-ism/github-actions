@@ -669,7 +669,7 @@ jobs:
 
           PAYLOAD=$(jq -n \
             --arg repo "$REPO" \
-            --arg prId "PR-$PR_NUMBER" \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
             --argjson prNumber "$PR_NUMBER" \
             --arg prTitle "${{ github.event.pull_request.title }}" \
             --arg prUrl "${{ github.event.pull_request.html_url }}" \
@@ -678,7 +678,7 @@ jobs:
             --argjson reviewed "$REVIEWED_USERS" \
             '{
               repositoryName: $repo,
-              pullRequestId: $prId,
+              githubPullRequestId: $githubPullRequestId,
               pullRequestNumber: $prNumber,
               pullRequestTitle: $prTitle,
               pullRequestUrl: $prUrl,
