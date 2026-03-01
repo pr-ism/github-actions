@@ -29,17 +29,6 @@ defaults:
     shell: bash
 
 jobs:
-  # ──────────────────────────────────────────────
-  # 1. PR Opened
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/opened
-  # Request DTO: PullRequestOpenedRequest
-  #   - isDraft: boolean
-  #   - pullRequest: { githubPullRequestId, number, title, url, headCommitSha,
-  #                     additions, deletions, changedFiles, createdAt,
-  #                     author: { login, id }, commits: { totalCount, nodes[] } }
-  #   - files: [{ filename, status, additions, deletions }]
-  # ──────────────────────────────────────────────
   collect-pr-opened:
     if: github.event.action == 'opened'
     runs-on: ubuntu-latest
@@ -107,13 +96,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/opened"
 
-  # ──────────────────────────────────────────────
-  # 2. PR Closed (closed / merged)
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/closed
-  # Request DTO: PullRequestClosedRequest
-  #   - pullRequestNumber, isMerged, closedAt, mergedAt
-  # ──────────────────────────────────────────────
   collect-pr-closed:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
@@ -145,13 +127,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/closed"
 
-  # ──────────────────────────────────────────────
-  # 3. PR Reopened
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/reopened
-  # Request DTO: PullRequestReopenedRequest
-  #   - pullRequestNumber, reopenedAt
-  # ──────────────────────────────────────────────
   collect-pr-reopened:
     if: github.event.action == 'reopened'
     runs-on: ubuntu-latest
@@ -177,13 +152,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/reopened"
 
-  # ──────────────────────────────────────────────
-  # 4. PR Ready for Review
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/ready-for-review
-  # Request DTO: PullRequestReadyForReviewRequest
-  #   - pullRequestNumber, readyForReviewAt
-  # ──────────────────────────────────────────────
   collect-pr-ready-for-review:
     if: github.event.action == 'ready_for_review'
     runs-on: ubuntu-latest
@@ -209,13 +177,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/ready-for-review"
 
-  # ──────────────────────────────────────────────
-  # 5. PR Converted to Draft
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/converted-to-draft
-  # Request DTO: PullRequestConvertedToDraftRequest
-  #   - pullRequestNumber, convertedToDraftAt
-  # ──────────────────────────────────────────────
   collect-pr-converted-to-draft:
     if: github.event.action == 'converted_to_draft'
     runs-on: ubuntu-latest
@@ -241,15 +202,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/converted-to-draft"
 
-  # ──────────────────────────────────────────────
-  # 6. PR Synchronized
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/synchronized
-  # Request DTO: PullRequestSynchronizedRequest
-  #   - githubPullRequestId, pullRequestNumber, headCommitSha, additions, deletions, changedFiles,
-  #     commits: { totalCount, nodes: [{ sha, committedDate }] },
-  #     files: [{ filename, status, additions, deletions }]
-  # ──────────────────────────────────────────────
   collect-pr-synchronized:
     if: github.event.action == 'synchronize'
     runs-on: ubuntu-latest
@@ -323,19 +275,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/synchronized"
 
-  # ──────────────────────────────────────────────
-  # 4. PR Label (labeled / unlabeled)
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/pull-request/label/added
-  # Request DTO: PullRequestLabelAddedRequest
-  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
-  #     label: { name }, labeledAt
-  #
-  # Endpoint: POST /collect/pull-request/label/removed
-  # Request DTO: PullRequestLabelRemovedRequest
-  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
-  #     label: { name }, unlabeledAt
-  # ──────────────────────────────────────────────
   collect-pr-label:
     if: github.event.action == 'labeled' || github.event.action == 'unlabeled'
     runs-on: ubuntu-latest
@@ -391,19 +330,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/pull-request/label/removed"
 
-  # ──────────────────────────────────────────────
-  # 3. Reviewer (review_requested / review_request_removed)
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/review/reviewer/added
-  # Request DTO: ReviewerAddedRequest
-  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
-  #     reviewer: { login, id }, requestedAt
-  #
-  # Endpoint: POST /collect/review/reviewer/removed
-  # Request DTO: ReviewerRemovedRequest
-  #   - githubPullRequestId, pullRequestNumber, headCommitSha,
-  #     reviewer: { login, id }, removedAt
-  # ──────────────────────────────────────────────
   collect-reviewer:
     if: github.event.action == 'review_requested' || github.event.action == 'review_request_removed'
     runs-on: ubuntu-latest
@@ -487,15 +413,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/review/reviewer/removed"
 
-  # ──────────────────────────────────────────────
-  # 4. Review Submitted
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/review/submitted
-  # Request DTO: ReviewSubmittedRequest
-  #   - githubPullRequestId, pullRequestNumber, githubReviewId,
-  #     reviewer: { login, id }, state, commitSha, body,
-  #     commentCount, submittedAt
-  # ──────────────────────────────────────────────
   collect-review-submitted:
     if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
     runs-on: ubuntu-latest
@@ -542,23 +459,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/review/submitted"
 
-  # ──────────────────────────────────────────────
-  # 5. Review Comment (created / edited / deleted)
-  # ──────────────────────────────────────────────
-  # Endpoint: POST /collect/review/comment/created
-  # Request DTO: ReviewCommentCreatedRequest
-  #   - githubCommentId, githubReviewId, body, path, line, startLine,
-  #     side, commitSha, inReplyToId, author: { login, id },
-  #     createdAt
-  #
-  # Endpoint: POST /collect/review/comment/edited
-  # Request DTO: ReviewCommentEditedRequest
-  #   - githubCommentId, body, updatedAt
-  #
-  # Endpoint: POST /collect/review/comment/deleted
-  # Request DTO: ReviewCommentDeletedRequest
-  #   - githubCommentId, updatedAt
-  # ──────────────────────────────────────────────
   collect-review-comment:
     if: github.event_name == 'pull_request_review_comment'
     runs-on: ubuntu-latest
@@ -640,9 +540,6 @@ jobs:
             -d "$PAYLOAD" \
             "$WEBHOOK_URL/collect/review/comment/deleted"
 
-  # ──────────────────────────────────────────────
-  # 6. Slack: Review Request Notification
-  # ──────────────────────────────────────────────
   collect-review-request-notification:
     if: github.event.action == 'review_requested'
     runs-on: ubuntu-latest
@@ -655,17 +552,41 @@ jobs:
       - name: Handle review requested event (Slack)
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_REVIEWER_LOGIN: ${{ github.event.requested_reviewer.login }}
+          REQUESTED_TEAM_SLUG: ${{ github.event.requested_team.slug }}
         run: |
           OWNER="${{ github.repository_owner }}"
           REPO="${{ github.event.repository.name }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
           AUTHOR="${{ github.event.pull_request.user.login }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           PENDING_RAW=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/requested_reviewers" || echo '{"users":[],"teams":[]}')
           REVIEWED_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" || echo '[]')
 
-          PENDING_USERS=$(echo "$PENDING_RAW" | jq -r --arg author "$AUTHOR" '[.users[].login? | select(. != $author)]')
-          REVIEWED_USERS=$(echo "$REVIEWED_RAW" | jq -r --arg author "$AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')
+          PENDING_USERS=$(echo "$PENDING_RAW" | jq -c --arg author "$AUTHOR" '[.users[].login? | select(. != $author)]')
+          PENDING_TEAMS=$(echo "$PENDING_RAW" | jq -c '[.teams[].slug?]')
+          PENDING_ALL=$(jq -cn --argjson users "$PENDING_USERS" --argjson teams "$PENDING_TEAMS" \
+            '($users + $teams) | map(select(type == "string" and length > 0)) | unique')
+
+          if [ "$(echo "$PENDING_ALL" | jq 'length')" -eq 0 ]; then
+            if [ -n "${REQUESTED_REVIEWER_LOGIN:-}" ]; then
+              PENDING_ALL=$(jq -cn --arg reviewer "$REQUESTED_REVIEWER_LOGIN" '[$reviewer]')
+            elif [ -n "${REQUESTED_TEAM_SLUG:-}" ]; then
+              PENDING_ALL=$(jq -cn --arg team "$REQUESTED_TEAM_SLUG" '[$team]')
+            fi
+          fi
+
+          REVIEWED_USERS=$(echo "$REVIEWED_RAW" | jq -c --arg author "$AUTHOR" --arg head "$HEAD_SHA" '
+            [
+              .[]
+              | select((.commit_id // "") == $head)
+              | select((.state // "") != "PENDING")
+              | .user.login?
+              | select(. != null and . != "" and . != $author)
+            ] | unique
+          ')
+          REVIEWED_ONLY=$(jq -cn --argjson reviewed "$REVIEWED_USERS" --argjson pending "$PENDING_ALL" '$reviewed - $pending')
 
           PAYLOAD=$(jq -n \
             --arg repo "$REPO" \
@@ -674,8 +595,9 @@ jobs:
             --arg prTitle "${{ github.event.pull_request.title }}" \
             --arg prUrl "${{ github.event.pull_request.html_url }}" \
             --arg author "$AUTHOR" \
-            --argjson pending "$PENDING_USERS" \
-            --argjson reviewed "$REVIEWED_USERS" \
+            --arg startCommitHash "$HEAD_SHA" \
+            --argjson pending "$PENDING_ALL" \
+            --argjson reviewed "$REVIEWED_ONLY" \
             '{
               repositoryName: $repo,
               githubPullRequestId: $githubPullRequestId,
@@ -683,6 +605,7 @@ jobs:
               pullRequestTitle: $prTitle,
               pullRequestUrl: $prUrl,
               authorGithubId: $author,
+              startCommitHash: $startCommitHash,
               pendingReviewers: $pending,
               reviewedReviewers: $reviewed
             }')
