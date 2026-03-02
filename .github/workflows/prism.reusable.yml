@@ -562,7 +562,7 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           PENDING_RAW=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/requested_reviewers" || echo '{"users":[],"teams":[]}')
-          REVIEWED_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" || echo '[]')
+          REVIEWS_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" --jq '.[]' | jq -s '.' || echo '[]')
 
           PENDING_USERS=$(echo "$PENDING_RAW" | jq -c --arg author "$AUTHOR" '[.users[].login? | select(. != $author)]')
           PENDING_TEAMS=$(echo "$PENDING_RAW" | jq -c '[.teams[].slug?]')
@@ -577,16 +577,24 @@ jobs:
             fi
           fi
 
-          REVIEWED_USERS=$(echo "$REVIEWED_RAW" | jq -c --arg author "$AUTHOR" --arg head "$HEAD_SHA" '
+          REVIEWED_RC=$(echo "$REVIEWS_RAW" | jq -c --arg author "$AUTHOR" '
             [
               .[]
-              | select((.commit_id // "") == $head)
-              | select((.state // "") != "PENDING")
-              | .user.login?
-              | select(. != null and . != "" and . != $author)
-            ] | unique
+              | {
+                  login: (.user.login // ""),
+                  state: ((.state // "") | ascii_upcase),
+                  submittedAt: (.submitted_at // ""),
+                  id: (.id // 0)
+                }
+              | select(.login != "" and .login != $author)
+              | select(.state != "PENDING")
+            ]
+            | sort_by(.login, .submittedAt, .id)
+            | group_by(.login)
+            | map(last)
+            | map(select(.state == "CHANGES_REQUESTED") | .login)
+            | unique
           ')
-          REVIEWED_ONLY=$(jq -cn --argjson reviewed "$REVIEWED_USERS" --argjson pending "$PENDING_ALL" '$reviewed - $pending')
 
           PAYLOAD=$(jq -n \
             --arg repo "$REPO" \
@@ -597,7 +605,7 @@ jobs:
             --arg author "$AUTHOR" \
             --arg startCommitHash "$HEAD_SHA" \
             --argjson pending "$PENDING_ALL" \
-            --argjson reviewed "$REVIEWED_ONLY" \
+            --argjson reviewed "$REVIEWED_RC" \
             '{
               repositoryName: $repo,
               githubPullRequestId: $githubPullRequestId,
